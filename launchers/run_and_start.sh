@@ -2,15 +2,14 @@
 
 source /environment.sh
 
-source /opt/ros/noetic/setup.bash
-source /code/catkin_ws/devel/setup.bash --extend
-source /code/submission_ws/devel/setup.bash --extend
+source /opt/ros/${ROS_DISTRO}/setup.bash
+source submission_underlay_ws/install/setup.bash
+source dev_ws/install/setup.bash 
+
 
 set -eux
 
-dt-exec-BG roscore
-
-dt-exec-BG roslaunch --wait random_action random_action_node.launch
-dt-exec-FG roslaunch --wait agent agent_node.launch || true
+dt-exec-BG ros2 launch random_action random_action.launch.py
+dt-exec-FG ros2 run duckietown_bridge duckietown_bridge || true
 
 copy-ros-logs

@@ -1,0 +1,2 @@
+source;share/ros2agent/environment/ament_prefix_path.sh
+source;share/ros2agent/environment/path.sh

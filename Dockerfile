@@ -1,11 +1,13 @@
 # Definition of Submission container
 
-ARG ARCH=amd64
-ARG MAJOR=daffy
-ARG BASE_TAG=${MAJOR}-${ARCH}
+
+ARG ARCH=arm32v7
+ARG DISTRO=daffy
+ARG BASE_TAG=${DISTRO}-${ARCH}
+ARG BASE_IMAGE=dt-commons
 
 ARG DOCKER_REGISTRY=docker.io
-FROM ${DOCKER_REGISTRY}/duckietown/dt-ros-commons:${BASE_TAG}
+FROM ${DOCKER_REGISTRY}/duckietown/${BASE_IMAGE}:${BASE_TAG} as BASE
 WORKDIR /code
 
 
@@ -29,7 +31,7 @@ RUN apt-get update -y && \
          libjpeg-dev\
           libgif-dev\
          software-properties-common && \
-     rm -rf /var/lib/apt/lists/*
+     rm -rf /var/lib/apt-get/lists/*
 
 
 # RUN apt-get update -y && \
@@ -64,25 +66,50 @@ RUN python3 -m pip check
 RUN python3 -m pip list
 
 
-# For ROS Agent - Need to upgrade Pillow for Old ROS stack
-#RUN python3 -m pip install pillow --user --upgrade
+### Install ROS2 Foxy
+ENV ROS_DISTRO=foxy
+# Set locale
+RUN apt-get update && apt-get install locales \
+  && locale-gen en_US en_US.UTF-8 \
+  && update-locale LC_ALL=en_US.UTF-8 LANG=en_US.UTF-8 \
+  && export LANG=en_US.UTF-8
 
-RUN mkdir submission_ws
+# Add ROS 2 apt-get repositories to system.
+RUN apt-get install software-properties-common \
+  && add-apt-repository universe
+
+RUN apt-get update && apt-get install -y curl gnupg2 lsb-release
+RUN curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key  -o /usr/share/keyrings/ros-archive-keyring.gpg
+RUN echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] http://packages.ros.org/ros2/ubuntu $(source /etc/os-release && echo $UBUNTU_CODENAME) main" | sudo tee /etc/apt/sources.list.d/ros2.list > /dev/null
+
+# Install ROS 2 packages
+RUN apt-get upgrade -y \
+  && apt-get install -y ros-foxy-base
+### Install ROS2 Foxy done.
+
 RUN mkdir launchers
-
-COPY submission_ws/src submission_ws/src
 COPY launchers launchers/
+RUN pwd
+
+RUN mkdir submission_underlay_ws
+COPY submission_underlay_ws/src submission_underlay_ws/src
+
+RUN mkdir dev_ws
+COPY dev_ws/src dev_ws/src
+
+COPY launchers ./
 
 # FIXME: what is this for? envs are not persisted
 RUN /bin/bash -c "export PYTHONPATH="/usr/local/lib/python3.7/dist-packages:$PYTHONPATH""
 
-ENV HOSTNAME=agent
+#ENV HOSTNAME=agent
 ENV VEHICLE_NAME=agent
-ENV ROS_MASTER_URI=http://localhost:11311
+#ENV ROS_MASTER_URI=http://localhost:11311
 
 RUN . /opt/ros/${ROS_DISTRO}/setup.sh && \
-    . ${CATKIN_WS_DIR}/devel/setup.bash  && \
-    catkin build --workspace /code/submission_ws
+    ( cd submission_underlay_ws && colcon build ) && \
+    . submission_underlay_ws/install/setup.sh && \
+    ( cd dev_ws && colcon build )
 
 ENV DISABLE_CONTRACTS=1
 CMD ["bash", "launchers/run_and_start.sh"]

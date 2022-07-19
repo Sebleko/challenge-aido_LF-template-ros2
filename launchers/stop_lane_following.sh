@@ -1,3 +1,5 @@
+# WARNING: This script has not yet been ported to ros2
+
 #!/bin/bash
 source /entrypoint.sh
 source /opt/ros/noetic/setup.bash
